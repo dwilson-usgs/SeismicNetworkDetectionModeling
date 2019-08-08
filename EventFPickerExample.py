@@ -95,7 +95,7 @@ client = Client("IRIS")
 
 # stuff to define for the FilterPiker
 Tlong=30  # a time averaging scale in seconds
-domper = 2 # dominant period that you want to pick up to
+domper = 20 # dominant period that you want to pick up to
 
 starttime = UTCDateTime("2018-08-01")
 endtime = UTCDateTime("2019-08-01")
