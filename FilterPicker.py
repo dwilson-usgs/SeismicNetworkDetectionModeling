@@ -85,3 +85,22 @@ def CreateSummaryCF(tr,Tlong,domper):
     CFsum=np.amax(CFmatrix, axis=0)        
     return CFsum
 
+def IntegrateCF(CFsum,dT,Tup,s1):
+    """
+    Function to Integrate a characteristic function (CF)
+    according to Lomax et al, 2012, text after eqn. 7
+    on pick declaration.
+    :param CFsum - the summary CF
+    :param dT - the sampling interval
+    :param Tup - the timewidth for pick declaration (in s)
+    :param s1 - Threshold 1 from Table 1
+    :return: The integrated CF which is the same length as CF
+    """
+    b=np.ones(CFsum.shape)*5.*s1
+    c=np.minimum(CFsum,b)
+    ICF=np.zeros(CFsum.shape)
+    nn=int(np.floor(Tup/dT))
+    print(nn)
+    for n in range(int(np.floor(len(c)-Tup/dT))):
+        ICF[n]=np.sum(c[n:n+nn])*dT
+    return ICF
