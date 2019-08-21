@@ -50,12 +50,14 @@ def process_stat(stat,cat):
     lats = []
     lons = []
     for evt in cat:
-        mags=evt.magnitudes[0].mag
-        lats.append(evt.origins[0].latitude)
-        lons.append(evt.origins[0].longitude)
-        tim=evt.origins[0].time
-        edeps=evt.origins[0].depth / 1000
-
+        try:
+            mags=evt.magnitudes[0].mag
+            lats.append(evt.origins[0].latitude)
+            lons.append(evt.origins[0].longitude)
+            tim=evt.origins[0].time
+            edeps=evt.origins[0].depth / 1000
+        except:
+            pass
         try:
         #if 1:
             n=n+1
@@ -71,12 +73,15 @@ def process_stat(stat,cat):
                   phase_list=["s","S"])
             arrs=arrivals[0]
             if epi_dist <= max_epi_dist:
+                #if 1:
                 try:
                     st = client.get_waveforms(cnet.code, stat.code, "*", chans, tim+arrp.time-Tlong*2, tim+arrs.time+30, attach_response=True)
                     print(cnet.code, stat.code, chans, tim, len(st))
-                    CF=fp.CreateSummaryCF(st[0],Tlong,domper)
+                    CF, CFind=fp.CreateSummaryCF(st[0],Tlong,domper)
                     dT=st[0].stats.delta
                     maxCF=np.amax(CF[int(np.floor((Tlong*2-Terr)/dT)):int(np.floor((Tlong*2+Terr)/dT))])
+                    maxCFind=np.argmax(CF[int(np.floor((Tlong*2-Terr)/dT)):int(np.floor((Tlong*2+Terr)/dT))])
+                    maxCFind = maxCFind + int(np.floor((Tlong*2-Terr)/dT))
                     stdCF=np.std(CF[0:int(np.floor((Tlong*2-Terr)/dT))])
                     meanCF=np.mean(CF[0:int(np.floor((Tlong*2-Terr)/dT))])
                     ICF=fp.IntegrateCF(CF,dT,Tup,s1)
@@ -84,8 +89,8 @@ def process_stat(stat,cat):
                     st.remove_response(output="ACC")
                     st.filter('bandpass', freqmin=fmin, freqmax=fmax)
                     stdacc = np.std(st[0].data[0:int(np.floor((Tlong*2-Terr)/dT))])
-                    print(mags,epi_dist,maxCF,stdacc, localmeantime(tim, stat.longitude), meanCF, stdCF, maxICF)
-                    results.append([mags,epi_dist,maxCF,stdacc, localmeantime(tim, stat.longitude), meanCF, stdCF, maxICF])
+                    print(mags,epi_dist,maxCF,stdacc, localmeantime(tim, stat.longitude), meanCF, stdCF, maxICF, CFind[maxCFind])
+                    results.append([mags,epi_dist,maxCF,stdacc, localmeantime(tim, stat.longitude), meanCF, stdCF, maxICF, CFind[maxCFind]])
                 except:
                     print("Could not fetch %s-%s %s" % (cnet.code, stat.code, tim))
                     nfail=nfail+1
@@ -93,7 +98,8 @@ def process_stat(stat,cat):
             print("Problem getting arrivals %s-%s %s" % (cnet.code, stat.code, tim))
             nfail=nfail+1   
     with open('FPoutput/resultsICF%s%s.pickle'%(cnet.code, stat.code), 'wb') as f:
-        pickle.dump([results, slats, slons, lats, lons, inventory, cat], f)
+        #pickle.dump([results, slats, slons, lats, lons, inventory, cat], f)
+        pickle.dump([results, stat], f)
     f.close()
     res="%s Done with %i fails out of %i" % (stat.code, nfail, n-1)
     return res
@@ -124,10 +130,10 @@ for cnet in inventory:
         statlist.append(stat)
 
 def parallel_runs(statlist):
-        pool = Pool(processes=5)
-        prod_x=partial(process_stat, cat=cat1)  
-        result_list = pool.map(prod_x, statlist) 
-        print(result_list)
+    pool = Pool(processes=5)
+    prod_x=partial(process_stat, cat=cat1)  
+    result_list = pool.map(prod_x, statlist) 
+    print(result_list)
         
 if Para==True:
     if __name__ == '__main__':

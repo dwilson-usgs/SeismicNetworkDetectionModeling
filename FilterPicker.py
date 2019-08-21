@@ -82,8 +82,9 @@ def CreateSummaryCF(tr,Tlong,domper):
     CFmatrix=[]
     for n in range(N):    
         CFmatrix.append(CreateCF(tr,n,Tlong))
-    CFsum=np.amax(CFmatrix, axis=0)        
-    return CFsum
+    CFsum=np.amax(CFmatrix, axis=0)
+    CFind=np.argmax(CFmatrix, axis=0)
+    return CFsum, CFind
 
 def IntegrateCF(CFsum,dT,Tup,s1):
     """

@@ -63,7 +63,8 @@ def PlotTn(tr,Tlong,domper,stat,mag,Edist):
         plt.text(-9,max(ax.get_ylim())*.75,'CF T%i=%2.2fs' % (n, (2.**n)*dT) )
         n=n+2
     plt.subplot(np.floor(N/2.)+3,1,np.floor(N/2.)+3)
-    plt.plot(t,fp.CreateSummaryCF(tr,Tlong,domper),'k')
+    sumCF, CFind = fp.CreateSummaryCF(tr,Tlong,domper)
+    plt.plot(t,sumCF,'k')
     plt.xlim([-10 , 20])
     ax=plt.gca()
     plt.text(-9,max(ax.get_ylim())*.75,'Summary CF')
