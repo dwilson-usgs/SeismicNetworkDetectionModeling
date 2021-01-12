@@ -5,10 +5,10 @@ EventFPPickerExample.py is for running and plotting event examples.
 FilterPicker.py is the module that contains the various functions corresponding to the equations in Lomax et al., 2012.
 
 For larger batch picker runs:
-Step 1. Run makeFPparams to create a pickle file with input paramaters
-Step 2. Run EventPicker_para.py (edit number of cores to run on in this file).
+*Step 1. Run makeFPparams to create a pickle file with input paramaters
+*Step 2. Run EventPicker_para.py (edit number of cores to run on in this file).
 
-For network modeling, the
+For network modeling,
 - NetThresh\_main\_work\_flow.py
 script runs through several approaches to get station info and noise values (from IRIS, from a CSV file, etc.) and model the network detection threshold.
 
