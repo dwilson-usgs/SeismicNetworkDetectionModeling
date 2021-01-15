@@ -77,6 +77,83 @@ def get_coeffs(coeffs='CEUS',phase='P'):
         print('no such coefficient and phase pair')
     return a
 
+#EW note: add a version of this that gets MUSTANG PSDs
+# instead of get_waveforms in calc_noise, get PSD vals
+# don't include stations that don't have PSDs available for specified day
+def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=0.8,fmaxS=12.5):
+    """
+    get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=0.8,fmaxS=12.5):
+
+    Returns a station dictionary that has station info and noise values computed from PSDs calculated by IRIS MUSTANG.
+
+    """
+# Remember: convert dB to acceleration RMS values before returning 
+# (or maybe do this as soon as they are returned from MUSTANG??
+# esp since we have to average the horizontals
+# from Dave: Ok, to get the std of acceleration, start with the PSD values (Px) over a frequency range and convert them from dB back to ground units (A), then sum them over the range*df. Then take the sqrt.  So, it should look like: Stdict[sta.code]['chans']['H'] = np.sqrt(np.sum(df * 10**(Px/10))) 
+    Sdict = collections.defaultdict(dict)
+    stnum=-1
+    for cnet in inventory:
+        for sta in cnet:
+    #        stnum=stnum+1
+            hcount=0
+            hsum=0
+            if not Sdict[sta.code]:
+                Sdict[sta.code] = collections.defaultdict(dict)
+            Sdict[sta.code]['netsta']="%s-%s" % (cnet.code, sta.code)
+            Sdict[sta.code]['lat']=sta.latitude
+            Sdict[sta.code]['lon']=sta.longitude
+            for chan in sta:
+                print("Working on %s-%s-%s" % (cnet.code, sta.code,chan.code))
+                if not Sdict[sta.code]['chans']:
+                        Sdict[sta.code]['chans'] = collections.defaultdict(dict)
+                if np.abs(chan.dip) > 45:
+                    try:
+                        
+# Get PSD value
+                        Px = -145*np.ones(14)
+                        #print(Px)
+                        f = np.linspace(1,14,14)
+                        iwhere, = np.where((f >= 4) & (f<=8))
+                        # mustang request here...
+# Check to make sure it is not dead: > -150 dB between 4 and 8 s
+                        #if PSD > -150 between 4 and 8 seconds :
+                        if (Px[iwhere] > -150).all():
+                            if not Sdict[sta.code]['chans']['V']:
+                                df = fmax - fmin #is this what df means???
+                                stdacc = np.sqrt(np.sum(df*10**(Px/10)))
+                                Sdict[sta.code]['chans']['V'] = stdacc
+                        else:
+                            print("Possible dead channel %s-%s-%s" % (cnet.code, sta.code,chan.code))
+                    except:
+                        print("Could not fetch %s-%s-%s" % (cnet.code, sta.code,chan.code))
+                if np.abs(chan.dip) < 1.0:
+                    try:
+                        Px = -145*np.ones(14)
+                        #print(Px)
+                        f = np.linspace(1,14,14)
+                        iwhere, = np.where((f >= 4) & (f<=8))
+# Get PSD value
+                        # mustang request here
+                        #if (Px > -150 between 4 and 8 seconds) :
+                        if (Px[iwhere] > -150).all():
+                            hcount +=1
+                            df = fmax - fmin #is this what df means???
+                            stdacc = np.sqrt(np.sum(df*10**(Px/10)))
+                            hsum += stdacc
+                            #average two horizontals
+                            #not sure how to do this in dB: hsum += np.std(st[0].data)
+                        else:
+                            print("Possible dead channel %s-%s-%s" % (cnet.code, sta.code,chan.code))
+                    except:
+                        print("Could not fetch %s-%s-%s" % (cnet.code, sta.code,chan.code))   
+            if hcount>0:
+                if not Sdict[sta.code]['chans']['H']:
+                    Sdict[sta.code]['chans']['H'] = hsum/hcount
+                    # is this the most appropriate way to do it?? 
+    return Sdict
+
+
 def calc_noise(inventory,starttime, endtime, fmin=1.25, fmax=25., fminS=0.8,fmaxS=12.5):
     """
     calc_noise(inventory,starttime, endtime, fmin=1.25, fmax=25., fminS=0.8,fmaxS=12.5)
@@ -144,7 +221,7 @@ def calc_noise_csv(csvfile):
     Net, Station, Lat, Lon, V or H, noiseval
 
     V or H indicates if it is a vertical of horizontal channel.
-    If more that one H channel is listed for a station, the mean H value will be used.
+    If more than one H channel is listed for a station, the mean H value will be used.
     noiseval is the std of the time domain acceleration data, units are m/s/s.
     """
     Sdict = collections.defaultdict(dict)
