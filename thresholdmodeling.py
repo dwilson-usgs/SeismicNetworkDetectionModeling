@@ -6,9 +6,13 @@ from obspy.clients.fdsn import Client
 
 from obspy.geodetics import gps2dist_azimuth
 from obspy.taup import TauPyModel
+from obspy import UTCDateTime
 model = TauPyModel(model="iasp91")
 client = Client("IRIS")
 import csv
+
+import requests
+from io import StringIO
 
 #from numpy import log10 as l10
 #from numpy import where as npwh
@@ -104,6 +108,7 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
             Sdict[sta.code]['lat']=sta.latitude
             Sdict[sta.code]['lon']=sta.longitude
             for chan in sta:
+                target = f'{cnet.code}.{sta.code}.{chan.location_code}.{chan.code}.M'
                 print("Working on %s-%s-%s" % (cnet.code, sta.code,chan.code))
                 if not Sdict[sta.code]['chans']:
                         Sdict[sta.code]['chans'] = collections.defaultdict(dict)
@@ -111,38 +116,64 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
                     try:
                         
 # Get PSD value
-                        Px = -145*np.ones(14)
+#                        Px = -145*np.ones(14)
                         #print(Px)
-                        f = np.linspace(1,14,14)
-                        iwhere, = np.where((f >= 4) & (f<=8))
+#                        f = np.linspace(1,14,14)
                         # mustang request here...
+                        reqbase = 'http://service.iris.edu/mustang/noise-psd/1/query?format=text&nodata=404'
+                        print(reqbase)
+                        if starttime > UTCDateTime() - 3*86400:
+                            print('ERROR: start time must be at least 3 days ago to use MUSTANG metrics')
+                            
+                        reqstring = reqbase + '&target={0}&starttime={1}&endtime={2}'.format(target, starttime.strftime('%Y-%m-%dT%H:%M:%S'), endtime.strftime('%Y-%m-%dT%H:%M:%S'))
+                        print(reqstring)
+                        res = requests.get(reqstring)
+                        print(res.status_code)
+                        if res.status_code == 200:
+                            stringio = StringIO(res.text)
+                            f, Px = np.loadtxt(stringio, unpack=True, delimiter=',', skiprows=18) 
+                            print(res.text)
+                        else: 
+                            print(res.status_code)
+
+#                        iwhere, = np.where((f <= 1/4) & (f>=1/8))
+                        i_checkdead, = np.where((f <= 1./4) & (f>=1./8))
+                        i_calc, = np.where((f >= fmin) & (f<=fmax)) #fmin, fmax for vertical (P)
+
 # Check to make sure it is not dead: > -150 dB between 4 and 8 s
                         #if PSD > -150 between 4 and 8 seconds :
-                        if (Px[iwhere] > -150).all():
+                        if (Px[i_checkdead] > -150).all():
                             if not Sdict[sta.code]['chans']['V']:
-                                df = fmax - fmin #is this what df means???
-                                stdacc = np.sqrt(np.sum(df*10**(Px/10)))
+#                                df = fmax - fmin #is this what df means???
+
+                                for i in zip(f[i_calc], Px[i_calc]):
+                                    print(i)
+                                df = f[i_calc].max() - f[i_calc].min() #is this what df means???
+                                print(df)
+                                stdacc = np.sqrt(np.sum(df*10**(Px[i_calc]/10)))
                                 Sdict[sta.code]['chans']['V'] = stdacc
                         else:
                             print("Possible dead channel %s-%s-%s" % (cnet.code, sta.code,chan.code))
-                    except:
+                    except Exception as e:
                         print("Could not fetch %s-%s-%s" % (cnet.code, sta.code,chan.code))
-                if np.abs(chan.dip) < 1.0:
+                        raise(e)
+                if np.abs(chan.dip) < 1.0: # for horizontals, use fminS/fmaxS
                     try:
-                        Px = -145*np.ones(14)
+                        Px = -149*np.ones(50)
                         #print(Px)
-                        f = np.linspace(1,14,14)
-                        iwhere, = np.where((f >= 4) & (f<=8))
+                        f = np.linspace(0.5,30,50)
+                        i_checkdead, = np.where((f >= 4) & (f<=8))
+                        i_calc, = np.where((f >= fminS) & (f<=fmaxS))
 # Get PSD value
                         # mustang request here
+# TODO: how to handle start and end times that will span multiple PSDs?
                         #if (Px > -150 between 4 and 8 seconds) :
-                        if (Px[iwhere] > -150).all():
+                        if (Px[i_checkdead] > -150).all():
                             hcount +=1
-                            df = fmax - fmin #is this what df means???
-                            stdacc = np.sqrt(np.sum(df*10**(Px/10)))
+#                            df = fmax - fmin #is this what df means???
+                            df = fmaxS - fminS #is this what df means???
+                            stdacc = np.sqrt(np.sum(df*10**(Px[i_calc]/10)))
                             hsum += stdacc
-                            #average two horizontals
-                            #not sure how to do this in dB: hsum += np.std(st[0].data)
                         else:
                             print("Possible dead channel %s-%s-%s" % (cnet.code, sta.code,chan.code))
                     except:
@@ -150,7 +181,7 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
             if hcount>0:
                 if not Sdict[sta.code]['chans']['H']:
                     Sdict[sta.code]['chans']['H'] = hsum/hcount
-                    # is this the most appropriate way to do it?? 
+                    # is it appropriate to average two stdevs? hmmm...
     return Sdict
 
 
