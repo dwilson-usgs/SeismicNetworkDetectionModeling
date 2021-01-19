@@ -95,6 +95,8 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
 # (or maybe do this as soon as they are returned from MUSTANG??
 # esp since we have to average the horizontals
 # from Dave: Ok, to get the std of acceleration, start with the PSD values (Px) over a frequency range and convert them from dB back to ground units (A), then sum them over the range*df. Then take the sqrt.  So, it should look like: Stdict[sta.code]['chans']['H'] = np.sqrt(np.sum(df * 10**(Px/10))) 
+# END OF DAY 15 Jan 21: get request working for horizontal next, verify meaning of df
+# todo: use noise profiles?? this would be a good way to handle endtime-starttime > 1 hr
     Sdict = collections.defaultdict(dict)
     stnum=-1
     for cnet in inventory:
@@ -112,14 +114,16 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
                 print("Working on %s-%s-%s" % (cnet.code, sta.code,chan.code))
                 if not Sdict[sta.code]['chans']:
                         Sdict[sta.code]['chans'] = collections.defaultdict(dict)
+# vertical component
                 if np.abs(chan.dip) > 45:
                     try:
                         
 # Get PSD value
+# dummy vals 
 #                        Px = -145*np.ones(14)
                         #print(Px)
 #                        f = np.linspace(1,14,14)
-                        # mustang request here...
+       # mustang request here...
                         reqbase = 'http://service.iris.edu/mustang/noise-psd/1/query?format=text&nodata=404'
                         print(reqbase)
                         if starttime > UTCDateTime() - 3*86400:
@@ -132,25 +136,33 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
                         if res.status_code == 200:
                             stringio = StringIO(res.text)
                             f, Px = np.loadtxt(stringio, unpack=True, delimiter=',', skiprows=18) 
+                            outfile = open('test.txt', 'w')
+                            outfile.write(res.text)
+                            outfile.close()
+
                             print(res.text)
                         else: 
                             print(res.status_code)
 
 #                        iwhere, = np.where((f <= 1/4) & (f>=1/8))
-                        i_checkdead, = np.where((f <= 1./4) & (f>=1./8))
                         i_calc, = np.where((f >= fmin) & (f<=fmax)) #fmin, fmax for vertical (P)
 
 # Check to make sure it is not dead: > -150 dB between 4 and 8 s
                         #if PSD > -150 between 4 and 8 seconds :
+                        i_checkdead, = np.where((f <= 1./4) & (f >= 1./8))
                         if (Px[i_checkdead] > -150).all():
                             if not Sdict[sta.code]['chans']['V']:
 #                                df = fmax - fmin #is this what df means???
 
-                                for i in zip(f[i_calc], Px[i_calc]):
-                                    print(i)
-                                df = f[i_calc].max() - f[i_calc].min() #is this what df means???
+                                #df = f[i_calc].max() - f[i_calc].min() #is this what df means???
+# df = spacing in frequency space between each point - DW 29 Jan
+# it's an integration                                
+# NEED TO EDIT THIS
                                 print(df)
-                                stdacc = np.sqrt(np.sum(df*10**(Px[i_calc]/10)))
+                                df = np.diff(f[i_calc])
+                                for i in zip(f[i_calc[1:]], df, Px[i_calc[1:]]):
+                                    print(i)
+                                stdacc = np.sqrt(np.sum(df*10**(Px[i_calc[1:]]/10)))
                                 Sdict[sta.code]['chans']['V'] = stdacc
                         else:
                             print("Possible dead channel %s-%s-%s" % (cnet.code, sta.code,chan.code))
