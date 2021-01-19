@@ -54,7 +54,10 @@ def calc_magdist(x,m,coeffs='CEUS',phase='P',xmax=1000):
     xx=y*0 + x
     model=calc_model(xx,y,coeffs,phase)
     indx0=np.where(model<=m)
-    return y[indx0[-1][-1]]
+    d=0.0
+    if len(indx0[-1]):
+        d=y[indx0[-1][-1]]
+    return d
 
 def get_coeffs(coeffs='CEUS',phase='P'):
     """
