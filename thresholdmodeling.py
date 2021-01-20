@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+import sys
 import numpy as np
 import collections
 from obspy.clients.fdsn import Client
@@ -84,7 +84,8 @@ def get_coeffs(coeffs='CEUS',phase='P'):
 #EW note: add a version of this that gets MUSTANG PSDs
 # instead of get_waveforms in calc_noise, get PSD vals
 # don't include stations that don't have PSDs available for specified day
-def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=0.8,fmaxS=12.5):
+def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=0.8,fmaxS=12.5, 
+                      use_profile=False, profile_stat=None):
     """
     get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=0.8,fmaxS=12.5):
 
@@ -101,6 +102,28 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
 # as of 19 Jan 2021, only works if endtime - starttime is less than 30 min, 
 # bc MUSTANG PSDs are calculated every 30 min and I haven't written code to handle text when multiple PSDs are returned
 # by the noise-psd webservice.
+# possible issue: noiseprofile is part of noise-pdf webservice, which cannot do time slices smaller than 1 day
+# I could calculate mean if < 1 day, and offer noise-profile option for T>1 day...?
+# or just let the user pick...
+    if use_profile:
+        if type(profile_stat) != str:
+            print('error: argument of profile_stat must be a string')
+            sys.exit(1)
+        print(f'using noise profile for statistic: {profile_stat}' )
+        reqbase = 'http://service.iris.edu/mustang/noise-pdf/1/query?format=noiseprofile_text&nodata=404' 
+        reqbase += f'&noiseprofile.type={profile_stat}' 
+        if endtime - starttime < 86400:
+            print('Warning: minimum timespan for noise_profile stats is 1 day')
+            print('but your requested endtime - starttime is less than 1 day')
+            print('proceeding anyway') 
+        # use noise profile service
+        # set web request base accordingly
+        # parse returned request as needed
+    else:
+        reqbase = 'http://service.iris.edu/mustang/noise-psd/1/query?format=text&nodata=404'
+        # parse returned request as needed (this will be annoying due to multiple PSDs...)
+        # calculate mean...
+
     Sdict = collections.defaultdict(dict)
     stnum=-1
     for cnet in inventory:
@@ -120,7 +143,6 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
                         Sdict[sta.code]['chans'] = collections.defaultdict(dict)
                 try:
                     # Get PSD values from MUSTANG
-                    reqbase = 'http://service.iris.edu/mustang/noise-psd/1/query?format=text&nodata=404'
                     print(reqbase)
                     if starttime > UTCDateTime() - 3*86400:
                         print('ERROR: start time must be at least 3 days ago to use MUSTANG metrics')
@@ -131,13 +153,24 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
                     res = requests.get(reqstring)
                     print(res.status_code)
                     if res.status_code == 200:
-                        stringio = StringIO(res.text)
-                        f, Px = np.loadtxt(stringio, unpack=True, delimiter=',', skiprows=18) 
-                        outfile = open(f'{target}.txt', 'w')
-                        outfile.write(res.text)
-                        outfile.close()
+                        if use_profile:
+                            stringio = StringIO(res.text)
+                            f, Px = np.loadtxt(stringio, unpack=True, delimiter=',')
+                            outfile = open(f'{target}_{profile_stat}.txt', 'w')
+                            outfile.write(res.text)
+                            outfile.close()
+                        else:
+# TODO 19 Jan 2021: right now this parsing only works if your timespan is less than 30 min...
+# need to implement averaging of multiple PSD segments for longer requests
+                            stringio = StringIO(res.text)
+                            f, Px = np.loadtxt(stringio, unpack=True, delimiter=',', skiprows=18) 
+                            outfile = open(f'{target}.txt', 'w')
+                            outfile.write(res.text)
+                            outfile.close()
                     else: 
+                        print('data request not successful')
                         print(res.status_code)
+                        print(res.text)
 
                     if np.abs(chan.dip) > 45:
                         i_calc, = np.where((f >= fmin) & (f<=fmax)) #fmin, fmax for vertical (P)
