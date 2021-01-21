@@ -58,7 +58,11 @@ def calc_magdist(x,m,coeffs='CEUS',phase='P',xmax=1000):
     xx=y*0 + x
     model=calc_model(xx,y,coeffs,phase)
     indx0=np.where(model<=m)
-    return y[indx0[-1][-1]]
+    d=0.0
+    if len(indx0[-1]):
+        d=y[indx0[-1][-1]]
+    return d
+#    return y[indx0[-1][-1]]
 
 def get_coeffs(coeffs='CEUS',phase='P'):
     """
@@ -87,7 +91,7 @@ def get_coeffs(coeffs='CEUS',phase='P'):
 def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=0.8,fmaxS=12.5, 
                       use_profile=False, profile_stat=None):
     """
-    get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=0.8,fmaxS=12.5):
+    get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=0.8,fmaxS=12.5, use_profile=False, profile_stat=None):
 
     Returns a station dictionary that has station info and noise values computed from PSDs calculated by IRIS MUSTANG.
 
@@ -104,7 +108,8 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
 # by the noise-psd webservice.
 # possible issue: noiseprofile is part of noise-pdf webservice, which cannot do time slices smaller than 1 day
 # I could calculate mean if < 1 day, and offer noise-profile option for T>1 day...?
-# or just let the user pick...
+# or just let the user pick what they want, with some warnings?
+# also: need to handle fmax above/close to Nyquist! (also should do this in calc_noise)
     if use_profile:
         if type(profile_stat) != str:
             print('error: argument of profile_stat must be a string')
@@ -154,19 +159,27 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
                     print(res.status_code)
                     if res.status_code == 200:
                         if use_profile:
-                            stringio = StringIO(res.text)
-                            f, Px = np.loadtxt(stringio, unpack=True, delimiter=',')
                             outfile = open(f'{target}_{profile_stat}.txt', 'w')
                             outfile.write(res.text)
                             outfile.close()
+                            stringio = StringIO(res.text)
+                            try:
+                                f, Px = np.loadtxt(stringio, unpack=True, delimiter=',')
+                            except:
+                                print(f'unable to read returned text for {target}')
+                                continue
                         else:
 # TODO 19 Jan 2021: right now this parsing only works if your timespan is less than 30 min...
 # need to implement averaging of multiple PSD segments for longer requests
-                            stringio = StringIO(res.text)
-                            f, Px = np.loadtxt(stringio, unpack=True, delimiter=',', skiprows=18) 
                             outfile = open(f'{target}.txt', 'w')
                             outfile.write(res.text)
                             outfile.close()
+                            stringio = StringIO(res.text)
+                            try:
+                                f, Px = np.loadtxt(stringio, unpack=True, delimiter=',', skiprows=18, max_rows=96) 
+                            except:
+                                print(f'unable to read returned text for {target}')
+                                continue
                     else: 
                         print('data request not successful')
                         print(res.status_code)

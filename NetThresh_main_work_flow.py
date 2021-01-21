@@ -28,14 +28,17 @@ client = Client("IRIS")
 ##########################################################
 ################# User input Section #####################
 # time for station noise analysis
-starttime = UTCDateTime("2020-08-01 05:00:00")
-endtime = UTCDateTime("2020-08-01 05:10:00")
+#starttime = UTCDateTime("2020-08-01 05:00:00")
+#endtime = UTCDateTime("2020-08-01 05:10:00")
+starttime = UTCDateTime("2020-01-01 00:00:00")
+endtime = UTCDateTime("2021-01-01 00:00:00")
 
 # coordinates of study area
 #boxcoords=[38.0, -81.0, 48.0, -66] # new england
 #boxcoords=[34.0, -94.0, 41.0, -83] # new madrid
 #boxcoords=[33.5, -100.1, 37.5, -94.4] # oklahoma
-boxcoords=[31.0, -91.0, 37.0, -83] # for csv test
+#boxcoords=[31.0, -91.0, 37.0, -83] # for csv test
+boxcoords=[31.0, -91.0, 48.0, -66] # for csv test
 
 # in degrees, box coords buffer to select station out side of box
 bb=2 
@@ -48,8 +51,10 @@ velerr=.05
 # magnitude to use for plotting detection distance circles
 cm=2.0
 # Calculate noise levels, or load them from a pickle or csv file?
-calc=False
-pickleorcsv='csv'      #this should be 'csv' or 'pickle', only used if calc=False
+#calc=False
+calc = True
+#pickleorcsv='csv'      #this should be 'csv' or 'pickle', only used if calc=False
+pickleorcsv='pickle'      #this should be 'csv' or 'pickle', only used if calc=False
 
 # title to be used for saving files
 titl="csvtest" # title to be used for saving and loading files
@@ -58,8 +63,10 @@ debug = True
 
 if calc:
     # build an inventory
+# does Obspy have a service that will return stns based on geographic boundaries? (box/radius?)
     stas= "*"
     nets="IU,US,N4,NE,TA,PE,CN,NM,ET,AG,AO"
+#    nets="IU,US,N4,NE"
     chans="HH*,BH*"
     #nets="O2,OK,US,N4,TA,GS"
 
@@ -82,10 +89,15 @@ if calc:
 ####     end of user input   ####################
 #############################################################################   
 ######### parameters below are default filter parameters for P and S ########
+# defaults
 fmin=1.25
 fmax=20.
 fminS=0.8
 fmaxS=12.5
+#fmin=1.25
+#fmax=15.
+#fminS=0.8
+#fmaxS=12.5
 
 # Median P and S values from noise study
 PdBval=-114.4
@@ -95,7 +107,8 @@ Pstd=10**(PdBval/20)
 Sstd=10**(SdBval/20)
 
 if calc==True:
-    Sdict=tm.calc_noise(inventory,starttime, endtime, fmin, fmax, fminS,fmaxS)
+    #Sdict=tm.calc_noise(inventory,starttime, endtime, fmin, fmax, fminS,fmaxS)
+    Sdict=tm.get_noise_MUSTANG(inventory,starttime, endtime, fmin, fmax, fminS,fmaxS, use_profile=True, profile_stat='50')
                             
     with open('NoiseVals%s%s.pickle'%(titl,starttime.strftime('%Y%m%d%H')),'wb') as f:
         pickle.dump([Sdict, boxcoords],f)
@@ -121,8 +134,8 @@ for sta in Sdict:
     Sdict[sta]['hit']=0
 
 # set up a grid for modelling
-x=np.arange(boxcoords[1],boxcoords[3]+.1,.1)
-y=np.arange(boxcoords[0],boxcoords[2]+.1,.1)
+x=np.arange(boxcoords[1],boxcoords[3]+.25,.25)
+y=np.arange(boxcoords[0],boxcoords[2]+.25,.25)
 
 results, Sdict = tm.model_thresh(Sdict,x,y,npick,velerr,dist_cut=250)
 
