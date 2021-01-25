@@ -3,7 +3,7 @@
 import numpy as np
 import collections
 from obspy.clients.fdsn import Client
-
+from copy import copy
 from obspy.geodetics import gps2dist_azimuth
 from obspy.taup import TauPyModel
 model = TauPyModel(model="iasp91")
@@ -169,7 +169,7 @@ def calc_noise_csv(csvfile):
                 Sdict[row[1]]['chans']['H'] = (Sdict[row[1]]['chans']['H'] +np.float(row[5]))/2
     return Sdict
 
-def model_thresh(Sdict,x,y,npick,velerr,dist_cut=250,coeffs='CEUS'):
+def model_thresh(Sdict,x,y,npick,velerr,nsta=5,dist_cut=250,coeffs='CEUS'):
     results=[]
     lnx=0
     for xi in x:
@@ -177,6 +177,7 @@ def model_thresh(Sdict,x,y,npick,velerr,dist_cut=250,coeffs='CEUS'):
         
         for yi in y:
             stat_results=[]
+            nsta_results=[]
             dists=[]
             for sta in Sdict:
                 stamag=9.0
@@ -194,6 +195,7 @@ def model_thresh(Sdict,x,y,npick,velerr,dist_cut=250,coeffs='CEUS'):
                     dists.append(epi_dist / 1000)
                 Sdict[sta]['Msta']=np.float(stamag)
                 Sdict[sta]['edist']=ya
+                nsta_results.append(np.float(stamag))
             if np.min(dists) < dist_cut:
                 imags=np.argsort(stat_results)
                 magdist=0
@@ -208,10 +210,13 @@ def model_thresh(Sdict,x,y,npick,velerr,dist_cut=250,coeffs='CEUS'):
                 #print("magdist: %3.1f, pick_dists: "%(magdist) + str(dists[imags[0]]))
                 dists=np.sort(dists)
                 stat_results=np.sort(stat_results)
-                results.append([xi, yi, stat_results[npick-1], np.min(dists), dists[npick-1], magdist, magdist/dists[npick-1],errtot])
+                nsta_results=np.sort(nsta_results)                    
+                #check to see if the nsta stamag is >= stat_results[npick-1]
+                finmag=np.max([stat_results[npick-1],nsta_results[nsta-1]])
+                results.append([xi, yi, finmag, np.min(dists), dists[npick-1], magdist, magdist/dists[npick-1],errtot])
                 for sta in Sdict:
                     if Sdict[sta]['edist'] <= magdist:
-                        if Sdict[sta]['Msta'] >  stat_results[npick-1]:
+                        if Sdict[sta]['Msta'] >  finmag:
                             Sdict[sta]['skip'] = Sdict[sta]['skip'] + 1
                         else:
                             Sdict[sta]['hit'] = Sdict[sta]['hit'] + 1
