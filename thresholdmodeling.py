@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import collections
 from obspy.clients.fdsn import Client
-
+import os
 from obspy.geodetics import gps2dist_azimuth
 from obspy.taup import TauPyModel
 from obspy import UTCDateTime
@@ -88,6 +88,43 @@ def get_coeffs(coeffs='CEUS',phase='P'):
 #EW note: add a version of this that gets MUSTANG PSDs
 # instead of get_waveforms in calc_noise, get PSD vals
 # don't include stations that don't have PSDs available for specified day
+
+def parse_MUSTANG_psd(stringio):
+    """
+    parse_MUSTANG_psd(stringio):
+
+    Returns the average of a list of PSDs requested from IRIS MUSTANG.
+    """
+    lines = stringio.readlines()
+    #print(lines)
+    n = 0
+    f, Px = [], []
+    f_all = []
+    for line in lines:
+        if line[0] == '#' or line[0].isalpha():
+            continue
+        else: 
+            #print(line)
+            freq, pwr = line.strip('\n').split(',')
+            f_all.append(freq)
+            if freq not in f:
+                f.append(freq)
+                Px.append(float(pwr))
+            else:
+                #print('append')
+                i_f = f.index(freq)
+                Px[i_f] += float(pwr)
+                #print(freq, Px[i_f])
+    try:
+        n = f_all.count(f_all[0])
+        f = np.array(f, dtype='float')
+        Px = np.array(Px)/n
+    except:
+        f = np.array([0.2])
+        Px = np.array([-200])
+    return f, Px
+
+
 def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=0.8,fmaxS=12.5, 
                       use_profile=False, profile_stat=None):
     """
@@ -102,38 +139,32 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
 # from Dave: Ok, to get the std of acceleration, start with the PSD values (Px) over a frequency range and convert them from dB back to ground units (A), then sum them over the range*df. Then take the sqrt.  So, it should look like: Stdict[sta.code]['chans']['H'] = np.sqrt(np.sum(df * 10**(Px/10))) 
 # df = spacing in frequency space between each point - DW 29 Jan
 # it's an integration                                
-# todo: use noise profiles - this would be a good way to handle endtime-starttime > 30 min
-# as of 19 Jan 2021, only works if endtime - starttime is less than 30 min, 
-# bc MUSTANG PSDs are calculated every 30 min and I haven't written code to handle text when multiple PSDs are returned
-# by the noise-psd webservice.
-# possible issue: noiseprofile is part of noise-pdf webservice, which cannot do time slices smaller than 1 day
-# I could calculate mean if < 1 day, and offer noise-profile option for T>1 day...?
-# or just let the user pick what they want, with some warnings?
-# also: need to handle fmax above/close to Nyquist! (also should do this in calc_noise)
+# Can use noise profiles - this is a fast way to handle endtime-starttime >> 1 day 
+# noise profiles are returned by noise-pdf webservice, which cannot do time slices smaller than 1 day
+# Decision: let the user pick what they want, with some warnings?
+# TODO: need to handle fmax above/close to Nyquist! (also should do this in calc_noise)
     if use_profile:
         if type(profile_stat) != str:
             print('error: argument of profile_stat must be a string')
             sys.exit(1)
         print(f'using noise profile for statistic: {profile_stat}' )
-        reqbase = 'http://service.iris.edu/mustang/noise-pdf/1/query?format=noiseprofile_text&nodata=404' 
-        reqbase += f'&noiseprofile.type={profile_stat}' 
+        reqbase = 'http://service.iris.edu/mustang/noise-pdf/1/query?nodata=404'
+        reqbase += f'&format=noiseprofile_text&noiseprofile.type={profile_stat}' 
         if endtime - starttime < 86400:
-            print('Warning: minimum timespan for noise_profile stats is 1 day')
+            print('Warning: minimum timespan for MUSTANG noise_profile metrics is 1 day')
             print('but your requested endtime - starttime is less than 1 day')
-            print('proceeding anyway') 
-        # use noise profile service
-        # set web request base accordingly
-        # parse returned request as needed
+            print('Proceeding anyway') 
     else:
-        reqbase = 'http://service.iris.edu/mustang/noise-psd/1/query?format=text&nodata=404'
-        # parse returned request as needed (this will be annoying due to multiple PSDs...)
-        # calculate mean...
+        reqbase = 'http://service.iris.edu/mustang/noise-psd/1/query?nodata=404&format=text'
+        if endtime - starttime > 86400:
+            print('Requested endtime - starttime is longer than 1 day')
+            print('Warning: Requesting many hourly PSDs may slow processing')
+            print('Proceeding anyway, but consider using noise_profile option for faster performance') 
 
     Sdict = collections.defaultdict(dict)
     stnum=-1
     for cnet in inventory:
         for sta in cnet:
-    #        stnum=stnum+1
             hcount=0
             hsum=0
             if not Sdict[sta.code]:
@@ -147,14 +178,11 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
                 if not Sdict[sta.code]['chans']:
                         Sdict[sta.code]['chans'] = collections.defaultdict(dict)
                 try:
-                    # Get PSD values from MUSTANG
-                    print(reqbase)
                     if starttime > UTCDateTime() - 3*86400:
                         print('ERROR: start time must be at least 3 days ago to use MUSTANG metrics')
                     t1str = starttime.strftime('%Y-%m-%dT%H:%M:%S')
                     t2str = endtime.strftime('%Y-%m-%dT%H:%M:%S')
                     reqstring = reqbase + f'&target={target}&starttime={t1str}&endtime={t2str}'
-                    print(reqstring)
                     res = requests.get(reqstring)
                     print(res.status_code)
                     if res.status_code == 200:
@@ -169,21 +197,18 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
                                 print(f'unable to read returned text for {target}')
                                 continue
                         else:
-# TODO 19 Jan 2021: right now this parsing only works if your timespan is less than 30 min...
-# need to implement averaging of multiple PSD segments for longer requests
                             outfile = open(f'{target}.txt', 'w')
                             outfile.write(res.text)
                             outfile.close()
                             stringio = StringIO(res.text)
                             try:
-                                f, Px = np.loadtxt(stringio, unpack=True, delimiter=',', skiprows=18, max_rows=96) 
-                            except:
-                                print(f'unable to read returned text for {target}')
+                                f, Px = parse_MUSTANG_psd(stringio)
+                            except Exception as e:
+                                raise(e)
+                                print(f'unable to parse returned text for {target}')
                                 continue
                     else: 
                         print('data request not successful')
-                        print(res.status_code)
-                        print(res.text)
 
                     if np.abs(chan.dip) > 45:
                         i_calc, = np.where((f >= fmin) & (f<=fmax)) #fmin, fmax for vertical (P)
@@ -192,14 +217,10 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
                         i_calc, = np.where((f >= fminS) & (f<=fmaxS)) #fminS, fmaxS for horizontal (S)
                         comp = 'H'
 
-                    # Check to make sure it is not dead: > -150 dB between 4 and 8 s
-                    #if PSD > -150 between 4 and 8 seconds :
+                    # Check to make sure it is not dead: PSD vals should be > -150 dB between 4 and 8 s
                     i_checkdead, = np.where((f <= 1./4) & (f >= 1./8))
                     if (Px[i_checkdead] > -150).all():
                         df = np.diff(f[i_calc])
-                        print(df)
-                        for i in zip(f[i_calc[1:]], df, Px[i_calc[1:]]):
-                            print(i)
                         stdacc = np.sqrt(np.sum(df*10**(Px[i_calc[1:]]/10)))
                         if comp == 'H':
                             hcount +=1

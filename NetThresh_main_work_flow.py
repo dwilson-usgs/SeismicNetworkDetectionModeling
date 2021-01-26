@@ -31,7 +31,8 @@ client = Client("IRIS")
 #starttime = UTCDateTime("2020-08-01 05:00:00")
 #endtime = UTCDateTime("2020-08-01 05:10:00")
 starttime = UTCDateTime("2020-01-01 00:00:00")
-endtime = UTCDateTime("2021-01-01 00:00:00")
+#endtime = UTCDateTime("2021-01-01 00:00:00")
+endtime = UTCDateTime("2020-01-01 12:00:00")
 
 # coordinates of study area
 #boxcoords=[38.0, -81.0, 48.0, -66] # new england
@@ -108,7 +109,8 @@ Sstd=10**(SdBval/20)
 
 if calc==True:
     #Sdict=tm.calc_noise(inventory,starttime, endtime, fmin, fmax, fminS,fmaxS)
-    Sdict=tm.get_noise_MUSTANG(inventory,starttime, endtime, fmin, fmax, fminS,fmaxS, use_profile=True, profile_stat='50')
+    #Sdict=tm.get_noise_MUSTANG(inventory,starttime, endtime, fmin, fmax, fminS,fmaxS, use_profile=True, profile_stat='50')
+    Sdict=tm.get_noise_MUSTANG(inventory,starttime, endtime, fmin, fmax, fminS,fmaxS)
                             
     with open('NoiseVals%s%s.pickle'%(titl,starttime.strftime('%Y%m%d%H')),'wb') as f:
         pickle.dump([Sdict, boxcoords],f)
@@ -134,8 +136,10 @@ for sta in Sdict:
     Sdict[sta]['hit']=0
 
 # set up a grid for modelling
-x=np.arange(boxcoords[1],boxcoords[3]+.25,.25)
-y=np.arange(boxcoords[0],boxcoords[2]+.25,.25)
+#x=np.arange(boxcoords[1],boxcoords[3]+.25,.25)
+#y=np.arange(boxcoords[0],boxcoords[2]+.25,.25)
+x=np.arange(boxcoords[1],boxcoords[3]+1,1)
+y=np.arange(boxcoords[0],boxcoords[2]+1,1)
 
 results, Sdict = tm.model_thresh(Sdict,x,y,npick,velerr,dist_cut=250)
 
@@ -179,7 +183,8 @@ if 1:
     matplotlib.rcParams['xtick.direction'] = 'out'
     matplotlib.rcParams['ytick.direction'] = 'out'
 
-    plt.contourf(xi, yi, zi.reshape(xi.shape), np.arange(c1, c2+.01, 0.1), cmap=plt.cm.plasma, transform=ccrs.PlateCarree() )
+#    plt.contourf(xi, yi, zi.reshape(xi.shape), np.arange(c1, c2+.01, 0.1), cmap=plt.cm.plasma, transform=ccrs.PlateCarree() )
+    plt.contourf(xi, yi, zi.reshape(xi.shape), np.arange(c1, c2+.01, 0.25), cmap=plt.cm.plasma, transform=ccrs.PlateCarree() )
     gridlines=ax.gridlines(draw_labels=True, color='gray', alpha=.8, linestyle=':')
     gridlines.xlabels_top=False
     gridlines.ylabels_right=False
