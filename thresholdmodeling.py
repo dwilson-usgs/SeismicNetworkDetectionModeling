@@ -173,8 +173,19 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
             Sdict[sta.code]['lat']=sta.latitude
             Sdict[sta.code]['lon']=sta.longitude
             for chan in sta:
-                target = f'{cnet.code}.{sta.code}.{chan.location_code}.{chan.code}.M'
                 print("Working on %s-%s-%s" % (cnet.code, sta.code,chan.code))
+                target = f'{cnet.code}.{sta.code}.{chan.location_code}.{chan.code}.M'
+                fny = chan.sample_rate/2
+                if fmax >= fny*0.75:
+                    fmax = fny*0.75
+                    print('requested fmax is close to Nyquist frequency')
+                    print('this can cause issues due to HF spikes in MUSTANG PSDs')
+                    print(f'using 0.75*fny = {fmax} for this channel instead')
+                if fmaxS >= fny*0.75:
+                    fmaxS = fny*0.75
+                    print('requested fmax is close to Nyquist frequency')
+                    print('this can cause issues due to HF spikes in MUSTANG PSDs')
+                    print(f'using 0.75*fny = {fmaxS} for this channel instead')
                 if not Sdict[sta.code]['chans']:
                         Sdict[sta.code]['chans'] = collections.defaultdict(dict)
                 try:
