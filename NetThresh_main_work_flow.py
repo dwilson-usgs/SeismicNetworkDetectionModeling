@@ -28,31 +28,34 @@ client = Client("IRIS")
 ##########################################################
 ################# User input Section #####################
 # time for station noise analysis
-starttime = UTCDateTime("2020-08-01 05:00:00")
-endtime = UTCDateTime("2020-08-01 05:10:00")
+starttime = UTCDateTime("2019-01-31 05:00:00")
+endtime = UTCDateTime("2019-01-31 05:10:00")
 
 # coordinates of study area
 #boxcoords=[38.0, -81.0, 48.0, -66] # new england
-#boxcoords=[34.0, -94.0, 41.0, -83] # new madrid
+boxcoords=[34.0, -94.0, 41.0, -83] # new madrid
 #boxcoords=[33.5, -100.1, 37.5, -94.4] # oklahoma
-boxcoords=[31.0, -91.0, 37.0, -83] # for csv test
+#boxcoords=[31.0, -91.0, 37.0, -83] # for csv test
 
 # in degrees, box coords buffer to select station out side of box
 bb=2 
 # number of stations required for event association
-nsta=5 
+nsta=5
 # number of phase picks required for event association
-npick=12 
+npick=12
 # error level for estimating
 velerr=.05
 # magnitude to use for plotting detection distance circles
 cm=2.0
 # Calculate noise levels, or load them from a pickle or csv file?
 calc=False
-pickleorcsv='csv'      #this should be 'csv' or 'pickle', only used if calc=False
+pickleorcsv='pickle'      #this should be 'csv' or 'pickle', only used if calc=False
 
 # title to be used for saving files
-titl="csvtest" # title to be used for saving and loading files
+titl="newmad" # title to be used for saving and loading files
+
+# percentage effectiveness. stations below this will be excluded in a second grid calculation.
+effper=10    # set to 0 to use all stations
 
 debug = True
 
@@ -72,12 +75,12 @@ if calc:
 
 
     # if you have other sites to add that can't be easily wildcarded, you can add them like this
-    othernets="LD"
-    othersites="NCB,FLET,KSCT,MCVT,HCNY,NPNY,PAL,ODNJ,WCNY,WVNY,SDMD,GCMD,GEDE,WADE"
+    #othernets="LD"
+    #othersites="NCB,FLET,KSCT,MCVT,HCNY,NPNY,PAL,ODNJ,WCNY,WVNY,SDMD,GCMD,GEDE,WADE"
     #othersites="BLO,BVIL,CBMO,CGM3,CGMO,EDIL,EVIN,FFIL,FVM,GBIN,HAIL,JCMO,MCIL,MGMO,MPH,MVKY,OHIN,OLIL,PBMO,PIOH,PLAL,PVMO,SCIN,SCMO,SIUC,STIL,TCIN,TYMO,UALR,USIN,UTMT,WVIL"
 
-    inventory += client.get_stations(network=othernets,station=othersites,channel=chans,starttime=starttime,
-                                        endtime=endtime,  level='response')
+    #inventory += client.get_stations(network=othernets,station=othersites,channel=chans,starttime=starttime,
+    #                                    endtime=endtime,  level='response')
 
 ####     end of user input   ####################
 #############################################################################   
@@ -121,32 +124,51 @@ for sta in Sdict:
     Sdict[sta]['hit']=0
 
 # set up a grid for modelling
-x=np.arange(boxcoords[1],boxcoords[3]+.1,.1)
-y=np.arange(boxcoords[0],boxcoords[2]+.1,.1)
+x1=np.arange(boxcoords[1],boxcoords[3]+.1,.1)
+y1=np.arange(boxcoords[0],boxcoords[2]+.1,.1)
 
-results, Sdict = tm.model_thresh(Sdict,x,y,npick,velerr,dist_cut=250)
-
+results, Sdict = tm.model_thresh(Sdict,x1,y1,npick,velerr,nsta=nsta,dist_cut=250)
+extent=[boxcoords[1], boxcoords[3], boxcoords[0], boxcoords[2]]
 x=np.asarray(results[:,0])
 y=np.asarray(results[:,1])
 z=np.asarray(results[:,2])
 zd=np.asarray(results[:,4])
+
 zd2=np.asarray(results[:,6])
 ze=np.asarray(results[:,7])
 
-extent=[boxcoords[1], boxcoords[3], boxcoords[0], boxcoords[2]]
+
 central_lon = np.mean(extent[:2])
 central_lat = np.mean(extent[2:])
 nbins=300
 xi, yi = np.mgrid[x.min():x.max():nbins*1j, y.min():y.max():nbins*1j]
+
+if effper > 0:
+    exclude_list=[]
+    for sta in Sdict:
+        if Sdict[sta]['lon'] > extent[0] and Sdict[sta]['lon'] < extent[1] and Sdict[sta]['lat'] > extent[2] and Sdict[sta]['lat'] < extent[3]:
+            tot=Sdict[sta]['hit']+Sdict[sta]['skip']
+            if tot >0.1:
+                eff=100*Sdict[sta]['hit'] / (tot)
+            if eff < effper:
+                exclude_list.append(sta)
+
+    resultsX, Sdict = tm.model_thresh(Sdict,x1,y1,npick,velerr,nsta=nsta,dist_cut=250,xl=exclude_list)
+    zX=np.asarray(resultsX[:,2])
+    zXi = griddata( (x,y), zX, (xi, yi), method='cubic')
+    with open('DetectGridX%s%s.pickle'%(titl,starttime.strftime('%Y%m%d%H')),'wb') as f:
+        pickle.dump([xi,yi,zXi,Sdict],f)
+    f.close()
+    
 
 zi = griddata( (x,y), z, (xi, yi), method='cubic')
 zdi = griddata( (x,y), zd, (xi, yi), method='cubic')
 zd2i = griddata( (x,y), zd2, (xi, yi), method='linear')
 zei = griddata( (x,y), ze, (xi, yi), method='cubic')
 
-#with open('DetectGrid%s%s.pickle'%(titl,starttime.strftime('%Y%m%d%H')),'wb') as f:
-#    pickle.dump([xi,yi,zi],f)
-#f.close()
+with open('DetectGrid%s%s.pickle'%(titl,starttime.strftime('%Y%m%d%H')),'wb') as f:
+    pickle.dump([xi,yi,zi,Sdict],f)
+f.close()
     
 if 1:
     plt.figure(7, figsize=(10,6))
@@ -184,6 +206,43 @@ if 1:
     for sta in Sdict:
         plt.plot(Sdict[sta]['lon'],Sdict[sta]['lat'], 'kd', markersize=4.5, transform=ccrs.PlateCarree())
 
+if effper>0:
+    plt.figure(17, figsize=(10,6))
+    c1=np.floor(min(z)*10)/10
+    c2=np.ceil(max(z)*10)/10
+    #c1=1.0
+    #c2=2.9
+    #ax = plt.axes(projection=ccrs.AlbersEqualArea(central_lon, central_lat))
+    ax = plt.axes(projection=ccrs.Mercator(central_lon))
+    ax.set_extent(extent)
+
+    ax.add_feature(cartopy.feature.OCEAN)
+    ax.add_feature(cartopy.feature.LAND, edgecolor='black')
+    ax.add_feature(cartopy.feature.LAKES, edgecolor='black')
+    ax.add_feature(cartopy.feature.STATES, edgecolor='black')
+
+    matplotlib.rcParams['xtick.direction'] = 'out'
+    matplotlib.rcParams['ytick.direction'] = 'out'
+
+    plt.contourf(xi, yi, zi.reshape(xi.shape), np.arange(c1, c2+.01, 0.1), cmap=plt.cm.plasma, transform=ccrs.PlateCarree() )
+    gridlines=ax.gridlines(draw_labels=True, color='gray', alpha=.8, linestyle=':')
+    gridlines.xlabels_top=False
+    gridlines.ylabels_right=False
+    gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax,2))
+    gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax,2))
+
+    # Add color bar
+    plt.clim(c1,c2)
+    cbar=plt.colorbar()
+    cbar.set_label('Detection Threshold (M)')
+
+    plt.xlabel('Longitude')
+    plt.ylabel('Latitude')
+    plt.title("With stations < %3.2f effectiveness excluded "% (effper))
+    for sta in Sdict:
+        if sta not in exclude_list:
+            plt.plot(Sdict[sta]['lon'],Sdict[sta]['lat'], 'kd', markersize=4.5, transform=ccrs.PlateCarree())
+        
 if 1:
     plt.figure(2, figsize=(10,7))
     #ax3 = plt.axes(projection=ccrs.AlbersEqualArea(central_lon, central_lat))

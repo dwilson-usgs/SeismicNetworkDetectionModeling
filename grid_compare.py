@@ -19,6 +19,7 @@ import cartopy.feature as cfeature
 from matplotlib.patches import Circle
 import matplotlib.ticker as mticker
 import csv
+from matplotlib import colors
 
 import thresholdmodeling as tm       ### this is the threshold modeling module
 
@@ -121,9 +122,15 @@ if 1:
 
 if 1:
     plt.figure(3, figsize=(10,6))
-    c1=np.floor(np.min(zi2-zi)*10)/10
-    c2=np.ceil(np.max(zi2-zi)*10)/10
+    c1=np.floor(np.min(zi2-zi)*20)/20
+    c2=np.ceil(np.max(zi2-zi)*20)/20
+    c1=np.min([c1,-.05])
+    c2=np.max([c2,.05])
     c3=np.max([np.abs(c1),np.abs(c2)])
+    norm = colors.DivergingNorm(vmin=np.min([c1,-.001]), vcenter=0, vmax=np.max([c2,.001]))
+    contours=np.arange(c1, c2+.05, 0.05)
+    indx=np.where(np.abs(contours)>0.001)
+    contours=contours[indx[0]]
     #c1=1.0
     #c2=2.9
     #ax = plt.axes(projection=ccrs.AlbersEqualArea(central_lon, central_lat))
@@ -138,7 +145,11 @@ if 1:
     matplotlib.rcParams['xtick.direction'] = 'out'
     matplotlib.rcParams['ytick.direction'] = 'out'
     zi3=zi2-zi
-    plt.contourf(xi2, yi2, zi3.reshape(xi.shape), np.arange(-c3, c3+.05, 0.1), cmap=plt.cm.seismic, transform=ccrs.PlateCarree() )
+    
+    plt.contourf(xi2, yi2, zi3.reshape(xi.shape),  contours, vmin=np.min([c1,-.001]), norm=norm, vmax=np.max([c2,.001]), cmap=plt.cm.seismic, transform=ccrs.PlateCarree() )
+    plt.clim(c1,c2)
+    
+        
     gridlines=ax.gridlines(draw_labels=True, color='gray', alpha=.8, linestyle=':')
     gridlines.xlabels_top=False
     gridlines.ylabels_right=False
@@ -146,7 +157,7 @@ if 1:
     gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax,2))
 
     # Add color bar
-    plt.clim(-c3,c3)
+    
     cbar=plt.colorbar()
     cbar.set_label('Detection Threshold difference (M)')
 

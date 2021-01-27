@@ -169,7 +169,7 @@ def calc_noise_csv(csvfile):
                 Sdict[row[1]]['chans']['H'] = (Sdict[row[1]]['chans']['H'] +np.float(row[5]))/2
     return Sdict
 
-def model_thresh(Sdict,x,y,npick,velerr,nsta=5,dist_cut=250,coeffs='CEUS'):
+def model_thresh(Sdict,x,y,npick,velerr,nsta=5,dist_cut=250,coeffs='CEUS',xl=[]):
     results=[]
     lnx=0
     for xi in x:
@@ -180,22 +180,23 @@ def model_thresh(Sdict,x,y,npick,velerr,nsta=5,dist_cut=250,coeffs='CEUS'):
             nsta_results=[]
             dists=[]
             for sta in Sdict:
-                stamag=9.0
-                epi_dist, az, baz = gps2dist_azimuth(yi,xi,Sdict[sta]['lat'],Sdict[sta]['lon'])
-                ya=epi_dist / 1000
-                for chan in Sdict[sta]['chans']:
-                    xa=np.log10(Sdict[sta]['chans'][chan])*20.
-                    if 'V' in chan:
-                        model=calc_model(xa,ya,coeffs,phase='P')
-                        stamag=np.min([stamag,np.float(model)])
-                    elif 'H' in chan:
-                        model=calc_model(xa,ya,coeffs,phase='S')
-                        stamag=np.min([stamag,np.float(model)])
-                    stat_results.append(model[0])
-                    dists.append(epi_dist / 1000)
-                Sdict[sta]['Msta']=np.float(stamag)
-                Sdict[sta]['edist']=ya
-                nsta_results.append(np.float(stamag))
+                if sta not in xl:
+                    stamag=9.0
+                    epi_dist, az, baz = gps2dist_azimuth(yi,xi,Sdict[sta]['lat'],Sdict[sta]['lon'])
+                    ya=epi_dist / 1000
+                    for chan in Sdict[sta]['chans']:
+                        xa=np.log10(Sdict[sta]['chans'][chan])*20.
+                        if 'V' in chan:
+                            model=calc_model(xa,ya,coeffs,phase='P')
+                            stamag=np.min([stamag,np.float(model)])
+                        elif 'H' in chan:
+                            model=calc_model(xa,ya,coeffs,phase='S')
+                            stamag=np.min([stamag,np.float(model)])
+                        stat_results.append(model[0])
+                        dists.append(epi_dist / 1000)
+                    Sdict[sta]['Msta']=np.float(stamag)
+                    Sdict[sta]['edist']=ya
+                    nsta_results.append(np.float(stamag))
             if np.min(dists) < dist_cut:
                 imags=np.argsort(stat_results)
                 magdist=0
