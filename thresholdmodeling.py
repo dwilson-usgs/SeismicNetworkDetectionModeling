@@ -32,12 +32,12 @@ def calc_model(x,y,coeffs='CEUS',phase='P'):
 
 def calc_model_hinged(a,x,y):
     #order of coefficients in a
-    #  0, 1,  2,  3,  4,  5,  6,  7,  8, 9
-    # R1, R2, c, a1, a2, a3, b1, b2, b3, d
+    #  0, 1,  2,  3,  4,  5,  6,  7,  8
+    # R1, R2, c, a1, a2, a3, b1, b2,  d
     if y <= a[0]:
         model=(a[2]+a[3]*np.log10(y)+ a[6]*y +a[8]*(x/20))
     elif y >= a[1]:
-        model=(a[2]+a[5]*np.log10(y/a[1])+a[4]*np.log10(a[1]/a[0]) +a[3]*np.log10(a[0]) + +a[7]*(a[1]-a[0]) + a[6]*a[0]+a[8]*(x/20))
+        model=(a[2]+a[5]*np.log10(y/a[1])+a[4]*np.log10(a[1]/a[0]) +a[3]*np.log10(a[0])  +a[7]*(a[1]-a[0]) + a[6]*a[0]+a[8]*(x/20))
     else:
         model=(a[2]+a[4]*np.log10(y/a[0])+a[3]*np.log10(a[0])+a[7]*(y-a[0])  +a[6]*a[0]+a[8]*(x/20))
     return model

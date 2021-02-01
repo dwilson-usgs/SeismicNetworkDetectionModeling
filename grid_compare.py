@@ -20,7 +20,8 @@ from matplotlib.patches import Circle
 import matplotlib.ticker as mticker
 import csv
 from matplotlib import colors
-
+from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+ 
 import thresholdmodeling as tm       ### this is the threshold modeling module
 
 model = TauPyModel(model="iasp91")
@@ -29,8 +30,9 @@ client = Client("IRIS")
 ##########################################################
 ################# User input Section #####################
 
-f1='DetectGridnewmadB2019013105'
-f2='DetectGridnewmad2019013105'
+f1='DetectGridnewmad2019013106'
+f2='DetectGridXnewmad2019013106'
+
 
 ##########################################################
 
@@ -72,7 +74,8 @@ if 1:
     gridlines.ylabels_right=False
     gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax,2))
     gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax,2))
-
+    gridlines.xformatter = LONGITUDE_FORMATTER
+    gridlines.yformatter = LATITUDE_FORMATTER
     # Add color bar
     plt.clim(c1,c2)
     cbar=plt.colorbar()
@@ -108,7 +111,8 @@ if 1:
     gridlines.ylabels_right=False
     gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax,2))
     gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax,2))
-
+    gridlines.xformatter = LONGITUDE_FORMATTER
+    gridlines.yformatter = LATITUDE_FORMATTER
     # Add color bar
     plt.clim(c1,c2)
     cbar=plt.colorbar()
@@ -150,12 +154,13 @@ if 1:
     plt.clim(c1,c2)
     
         
-    gridlines=ax.gridlines(draw_labels=True, color='gray', alpha=.8, linestyle=':')
+    gridlines=ax.gridlines(draw_labels=True, color='gray', alpha=.9, linestyle=':')
     gridlines.xlabels_top=False
     gridlines.ylabels_right=False
-    gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax,2))
-    gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax,2))
-
+    gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax+2,2))
+    gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax+2,2))
+    gridlines.xformatter = LONGITUDE_FORMATTER
+    gridlines.yformatter = LATITUDE_FORMATTER
     # Add color bar
     
     cbar=plt.colorbar()
@@ -192,12 +197,13 @@ if 1:
     matplotlib.rcParams['ytick.direction'] = 'out'
     zi3=zi2-zi
     #plt.contourf(xi2, yi2, zi3.reshape(xi.shape), np.arange(-c3, c3+.05, 0.05), cmap=plt.cm.seismic, transform=ccrs.PlateCarree() )
-    gridlines=ax.gridlines(draw_labels=True, color='gray', alpha=.8, linestyle=':')
+    gridlines=ax.gridlines(draw_labels=True, color='gray', alpha=.9, linestyle=':')
     gridlines.xlabels_top=False
     gridlines.ylabels_right=False
-    gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax,2))
-    gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax,2))
-
+    gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax+2,2))
+    gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax+2,2))
+    gridlines.xformatter = LONGITUDE_FORMATTER
+    gridlines.yformatter = LATITUDE_FORMATTER
     # Add color bar
     #plt.clim(-c3,c3)
     #cbar=plt.colorbar()
@@ -245,11 +251,13 @@ if 1:
     matplotlib.rcParams['ytick.direction'] = 'out'
     zi3=zi2-zi
     #plt.contourf(xi2, yi2, zi3.reshape(xi.shape), np.arange(-c3, c3+.05, 0.05), cmap=plt.cm.seismic, transform=ccrs.PlateCarree() )
-    gridlines=ax.gridlines(draw_labels=True, color='gray', alpha=.8, linestyle=':')
+    gridlines=ax.gridlines(draw_labels=True, color='gray', alpha=.9, linestyle=':')
     gridlines.xlabels_top=False
     gridlines.ylabels_right=False
-    gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax,2))
-    gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax,2))
+    gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax+2,2))
+    gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax+2,2))
+    gridlines.xformatter = LONGITUDE_FORMATTER
+    gridlines.yformatter = LATITUDE_FORMATTER
 
     # Add color bar
     #plt.clim(-c3,c3)

@@ -19,7 +19,8 @@ import cartopy.feature as cfeature
 from matplotlib.patches import Circle
 import matplotlib.ticker as mticker
 import csv
-
+from matplotlib import colors
+from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 import thresholdmodeling as tm       ### this is the threshold modeling module
 
 model = TauPyModel(model="iasp91")
@@ -28,8 +29,8 @@ client = Client("IRIS")
 ##########################################################
 ################# User input Section #####################
 # time for station noise analysis
-starttime = UTCDateTime("2019-01-31 05:00:00")
-endtime = UTCDateTime("2019-01-31 05:10:00")
+starttime = UTCDateTime("2019-01-31 06:00:00")
+endtime = UTCDateTime("2019-01-31 06:10:00")
 
 # coordinates of study area
 #boxcoords=[38.0, -81.0, 48.0, -66] # new england
@@ -46,7 +47,7 @@ npick=12
 # error level for estimating
 velerr=.05
 # magnitude to use for plotting detection distance circles
-cm=2.0
+cm=1.5
 # Calculate noise levels, or load them from a pickle or csv file?
 calc=False
 pickleorcsv='pickle'      #this should be 'csv' or 'pickle', only used if calc=False
@@ -159,7 +160,8 @@ if effper > 0:
     with open('DetectGridX%s%s.pickle'%(titl,starttime.strftime('%Y%m%d%H')),'wb') as f:
         pickle.dump([xi,yi,zXi,Sdict],f)
     f.close()
-    
+    print("Excleded Stations:")
+    print(exclude_list)
 
 zi = griddata( (x,y), z, (xi, yi), method='cubic')
 zdi = griddata( (x,y), zd, (xi, yi), method='cubic')
@@ -194,7 +196,8 @@ if 1:
     gridlines.ylabels_right=False
     gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax,2))
     gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax,2))
-
+    gridlines.xformatter = LONGITUDE_FORMATTER
+    gridlines.yformatter = LATITUDE_FORMATTER
     # Add color bar
     plt.clim(c1,c2)
     cbar=plt.colorbar()
@@ -208,8 +211,17 @@ if 1:
 
 if effper>0:
     plt.figure(17, figsize=(10,6))
-    c1=np.floor(min(z)*10)/10
-    c2=np.ceil(max(z)*10)/10
+    #c1=np.floor(min(z)*10)/10
+    #c2=np.ceil(max(z)*10)/10
+    c1=np.floor(np.min(zXi-zi)*20)/20
+    c2=np.ceil(np.max(zXi-zi)*20)/20
+    c1=np.min([c1,-.05])
+    c2=np.max([c2,.05])
+    c3=np.max([np.abs(c1),np.abs(c2)])
+    norm = colors.DivergingNorm(vmin=np.min([c1,-.001]), vcenter=0, vmax=np.max([c2,.001]))
+    contours=np.arange(c1, c2+.05, 0.05)
+    indx=np.where(np.abs(contours)>0.001)
+    contours=contours[indx[0]]
     #c1=1.0
     #c2=2.9
     #ax = plt.axes(projection=ccrs.AlbersEqualArea(central_lon, central_lat))
@@ -223,14 +235,15 @@ if effper>0:
 
     matplotlib.rcParams['xtick.direction'] = 'out'
     matplotlib.rcParams['ytick.direction'] = 'out'
-
-    plt.contourf(xi, yi, zi.reshape(xi.shape), np.arange(c1, c2+.01, 0.1), cmap=plt.cm.plasma, transform=ccrs.PlateCarree() )
+    zi3=zXi-zi
+    plt.contourf(xi, yi, zi3.reshape(xi.shape), contours, vmin=np.min([c1,-.001]), norm=norm, vmax=np.max([c2,.001]), cmap=plt.cm.seismic, transform=ccrs.PlateCarree() )
     gridlines=ax.gridlines(draw_labels=True, color='gray', alpha=.8, linestyle=':')
     gridlines.xlabels_top=False
     gridlines.ylabels_right=False
     gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax,2))
     gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax,2))
-
+    gridlines.xformatter = LONGITUDE_FORMATTER
+    gridlines.yformatter = LATITUDE_FORMATTER
     # Add color bar
     plt.clim(c1,c2)
     cbar=plt.colorbar()
@@ -242,6 +255,8 @@ if effper>0:
     for sta in Sdict:
         if sta not in exclude_list:
             plt.plot(Sdict[sta]['lon'],Sdict[sta]['lat'], 'kd', markersize=4.5, transform=ccrs.PlateCarree())
+        else:
+            plt.plot(Sdict[sta]['lon'],Sdict[sta]['lat'], 'b*', markersize=4.5, transform=ccrs.PlateCarree())
         
 if 1:
     plt.figure(2, figsize=(10,7))
@@ -260,6 +275,8 @@ if 1:
     gridlines.ylabels_right=False
     gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax,2))
     gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax,2))
+    gridlines.xformatter = LONGITUDE_FORMATTER
+    gridlines.yformatter = LATITUDE_FORMATTER
     #plt.clim(0.0,300)
     cbar=plt.colorbar()
     cbar.set_label('Distance to %ith nearest pick'%(npick))
@@ -288,6 +305,8 @@ if 1:
     gridlines.ylabels_right=False
     gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax,2))
     gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax,2))
+    gridlines.xformatter = LONGITUDE_FORMATTER
+    gridlines.yformatter = LATITUDE_FORMATTER
     #plt.clim(0.0,2)
     cbar=plt.colorbar()
     #plt.clim(1,2.5)
@@ -343,6 +362,8 @@ if 1:
     gridlines.ylabels_right=False
     gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax,2))
     gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax,2))
+    gridlines.xformatter = LONGITUDE_FORMATTER
+    gridlines.yformatter = LATITUDE_FORMATTER
     f.close()
     #plt.show()
 
@@ -372,6 +393,8 @@ if 1:
     gridlines.ylabels_right=False
     gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax,2))
     gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax,2))
+    gridlines.xformatter = LONGITUDE_FORMATTER
+    gridlines.yformatter = LATITUDE_FORMATTER
     #plt.clim(0.0,300)
     cbar=plt.colorbar()
     cbar.set_label('Horizontal location error (km)')
