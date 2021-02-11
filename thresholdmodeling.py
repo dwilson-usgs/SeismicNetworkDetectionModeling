@@ -85,18 +85,15 @@ def get_coeffs(coeffs='CEUS',phase='P'):
         print('no such coefficient and phase pair')
     return a
 
-#EW note: add a version of this that gets MUSTANG PSDs
-# instead of get_waveforms in calc_noise, get PSD vals
-# don't include stations that don't have PSDs available for specified day
-
 def parse_MUSTANG_psd(stringio):
     """
     parse_MUSTANG_psd(stringio):
 
-    Returns the average of a list of PSDs requested from IRIS MUSTANG.
+    Returns the mean of a list of PSDs requested from IRIS MUSTANG.
+    Input object can be either an open file like open('infile','r')
+    or text from a returned Request opened as stringio: StringIO(res.text)
     """
     lines = stringio.readlines()
-    #print(lines)
     n = 0
     f, Px = [], []
     f_all = []
@@ -104,26 +101,44 @@ def parse_MUSTANG_psd(stringio):
         if line[0] == '#' or line[0].isalpha():
             continue
         else: 
-            #print(line)
             freq, pwr = line.strip('\n').split(',')
             f_all.append(freq)
             if freq not in f:
-                f.append(freq)
+                f.append(freq) # freq is a str here for easy lookup
                 Px.append(float(pwr))
             else:
-                #print('append')
                 i_f = f.index(freq)
                 Px[i_f] += float(pwr)
-                #print(freq, Px[i_f])
-    try:
+    try: 
         n = f_all.count(f_all[0])
         f = np.array(f, dtype='float')
         Px = np.array(Px)/n
-    except:
+    except: # if no data in returned request, force a "dead" channel
+        print('no data in returned PSD')
         f = np.array([0.2])
         Px = np.array([-200])
     return f, Px
 
+
+def sdict_to_csv(Sdict, csvname):
+   """
+   sdict_to_csv: 
+
+   Write station dictionary to a csv file for editing
+   """
+   csvfile = open(f'{csvname}', 'w') 
+   for stakey in Sdict.keys():
+       net = Sdict[stakey]['netsta'].split('-')[0]
+       sta = Sdict[stakey]['netsta'].split('-')[1]
+       lat = Sdict[stakey]['lat']
+       lon = Sdict[stakey]['lon']
+       chns = Sdict[stakey]['chans']
+       for cha in chns.keys():
+           csvfile.write(f'{net} {sta} {lat} {lon} {cha} {chns[cha]}\n')
+       
+   csvfile.close()
+   print(f'Wrote station noise values to CSV file {csvname}')
+       
 
 def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=0.8,fmaxS=12.5, 
                       use_profile=False, profile_stat=None):
@@ -134,15 +149,13 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
 
     """
 # Remember: convert dB to acceleration RMS values before returning 
-# (or maybe do this as soon as they are returned from MUSTANG??
-# esp since we have to average the horizontals
 # from Dave: Ok, to get the std of acceleration, start with the PSD values (Px) over a frequency range and convert them from dB back to ground units (A), then sum them over the range*df. Then take the sqrt.  So, it should look like: Stdict[sta.code]['chans']['H'] = np.sqrt(np.sum(df * 10**(Px/10))) 
 # df = spacing in frequency space between each point - DW 29 Jan
-# it's an integration                                
+# it's an integration        
+# MUSTANG freqs are log-spaced so we have to calculate df explicitly
 # Can use noise profiles - this is a fast way to handle endtime-starttime >> 1 day 
 # noise profiles are returned by noise-pdf webservice, which cannot do time slices smaller than 1 day
 # Decision: let the user pick what they want, with some warnings?
-# TODO: need to handle fmax above/close to Nyquist! (also should do this in calc_noise)
     if use_profile:
         if type(profile_stat) != str:
             print('error: argument of profile_stat must be a string')
@@ -163,6 +176,7 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
 
     Sdict = collections.defaultdict(dict)
     stnum=-1
+    fmax_orig = fmax
     for cnet in inventory:
         for sta in cnet:
             hcount=0
@@ -176,10 +190,11 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
                 print("Working on %s-%s-%s" % (cnet.code, sta.code,chan.code))
                 target = f'{cnet.code}.{sta.code}.{chan.location_code}.{chan.code}.M'
                 fny = chan.sample_rate/2
+                fmax = fmax_orig
                 if fmax >= fny*0.75:
-                    fmax = fny*0.75
-                    print('requested fmax is close to Nyquist frequency')
+                    print(f'requested fmax {fmax} Hz is close to Nyquist frequency')
                     print('this can cause issues due to HF spikes in MUSTANG PSDs')
+                    fmax = fny*0.75
                     print(f'using 0.75*fny = {fmax} for this channel instead')
                 if fmaxS >= fny*0.75:
                     fmaxS = fny*0.75
@@ -198,9 +213,10 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
                     print(res.status_code)
                     if res.status_code == 200:
                         if use_profile:
-                            outfile = open(f'{target}_{profile_stat}.txt', 'w')
-                            outfile.write(res.text)
-                            outfile.close()
+                            #not sure if we want to write out profiles
+                            #outfile = open(f'{target}_{profile_stat}.txt', 'w')
+                            #outfile.write(res.text)
+                            #outfile.close()
                             stringio = StringIO(res.text)
                             try:
                                 f, Px = np.loadtxt(stringio, unpack=True, delimiter=',')
@@ -208,9 +224,10 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
                                 print(f'unable to read returned text for {target}')
                                 continue
                         else:
-                            outfile = open(f'{target}.txt', 'w')
-                            outfile.write(res.text)
-                            outfile.close()
+                            #not sure if we want to write out PSDs
+                            #outfile = open(f'{target}.txt', 'w')
+                            #outfile.write(res.text)
+                            #outfile.close()
                             stringio = StringIO(res.text)
                             try:
                                 f, Px = parse_MUSTANG_psd(stringio)
@@ -228,7 +245,8 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
                         i_calc, = np.where((f >= fminS) & (f<=fmaxS)) #fminS, fmaxS for horizontal (S)
                         comp = 'H'
 
-                    # Check to make sure it is not dead: PSD vals should be > -150 dB between 4 and 8 s
+                    # Check to make sure it is not dead: 
+                    # PSD vals should be > -150 dB between 4 and 8 s
                     i_checkdead, = np.where((f <= 1./4) & (f >= 1./8))
                     if (Px[i_checkdead] > -150).all():
                         df = np.diff(f[i_calc])
