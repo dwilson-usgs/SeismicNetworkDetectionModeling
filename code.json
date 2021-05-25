@@ -4,7 +4,7 @@
     "organization": "U.S. Geological Survey",
     "description": "Code for modeling the magnitude dection threshold of a seismic network",
     "version": "v1.0.0",
-    "status": "Production",
+    "status": "Development",
 
     "permissions": {
       "usageType": "openSource",
