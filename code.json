@@ -11,14 +11,14 @@
       "licenses": [
         {
           "name": "Public Domain, CC0-1.0",
-          "URL": "https://code.usgs.gov/asl/papers/dwilson/seismic-network-detection-modeling/-/raw/v1.0.0/LICENSE.md"
+          "URL": "https://code.usgs.gov/asl/papers/dwilson/seismic-network-detection-modeling/-/raw/master/LICENSE.md"
         }
       ]
     },
 
     "homepageURL": "https://code.usgs.gov/asl/papers/dwilson/seismic-network-detection-modeling",
-    "downloadURL": "https://code.usgs.gov/asl/papers/dwilson/seismic-network-detection-modeling/-/archive/v1.0.0/seismic-network-detection-modeling-master.zip",
-    "disclaimerURL": "https://code.usgs.gov/asl/papers/dwilson/seismic-network-detection-modeling/-/raw/v1.0.0/DISCLAIMER.md",
+    "downloadURL": "https://code.usgs.gov/asl/papers/dwilson/seismic-network-detection-modeling/-/archive/master/seismic-network-detection-modeling-master.zip",
+    "disclaimerURL": "https://code.usgs.gov/asl/papers/dwilson/seismic-network-detection-modeling/-/raw/master/DISCLAIMER.md",
     "repositoryURL": "https://code.usgs.gov/asl/papers/dwilson/seismic-network-detection-modeling.git",
     "vcs": "git",
 
