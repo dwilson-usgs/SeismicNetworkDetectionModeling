@@ -5,3 +5,4 @@ channels:
 dependencies:
   - cartopy=0.17.0=py37hd759880_1006
   - obspy=1.1.0=py37h3010b51_1002
+  - numpy=1.16.4=py37h7e9f1db_0
