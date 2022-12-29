@@ -29,19 +29,32 @@ client = Client("IRIS")
 ##########################################################
 ################# User input Section #####################
 # time for station noise analysis
-starttime = UTCDateTime("2019-01-31 06:00:00")
-endtime = UTCDateTime("2019-01-31 06:10:00")
+starttime = UTCDateTime("2022-07-01 06:00:00")
+endtime = UTCDateTime("2022-07-31 06:10:00")
 
 # coordinates of study area
 #boxcoords=[38.0, -81.0, 48.0, -66] # new england
-boxcoords=[34.0, -94.0, 41.0, -83] # new madrid
+#boxcoords=[34.0, -94.0, 41.0, -83] # new madrid
 #boxcoords=[33.5, -100.1, 37.5, -94.4] # oklahoma
-#boxcoords=[31.0, -91.0, 37.0, -83] # for csv test
+boxcoords=[36.5, -115.0, 42.5, -108.0] # Utah
+
+# attenuation model to use, options are 'CEUS' or 'UTAH'
+"""
+    Note that 'CEUS' model was created for the Eastern US using an automated picker,
+    i.e., the detection threshold that it produces is what an automated picker should be able to pick.
+    The 'UTAH' model was created using catalog picks (analyst reviewed), so the detection
+    thresholds that it produces are lower in magnitude and represents what an analyst should be able to pick.
+    The 'UTAH' model is currently in Beta mode
+"""
+atten='UTAH'
 
 # in degrees, box coords buffer to select station out side of box
-bb=2 
+bb=2
 # number of stations required for event association
-nsta=5
+nsta=7
+# if you want to do a test run with the csvtest file in this repo
+runcsvtest=0
+
 # number of phase picks required for event association
 npick=12
 # error level for estimating
@@ -49,33 +62,55 @@ velerr=.05
 # magnitude to use for plotting detection distance circles
 cm=1.5
 # Calculate noise levels, or load them from a pickle or csv file?
-calc=False
-pickleorcsv='pickle'      #this should be 'csv' or 'pickle', only used if calc=False
+#calc=False
+calc = True
+pickleorcsv='csv'      #this should be 'csv' or 'pickle', only used if calc=False
+
+waveform_or_psd = 'psd' # 'waveform' or 'psd'; if 'psd', get MUSTANG PSDs for specified timeframe
+if waveform_or_psd == 'psd':
+    use_profile = True #True or False
+    if use_profile:
+        profile_stat = '90' # must be str. choose a percentile, median, mode, or mean
+
 
 # title to be used for saving files
-titl="newmad" # title to be used for saving and loading files
+titl="utah" # title to be used for saving and loading files
+
+if runcsvtest:
+    # for csv test, use these values
+    starttime = UTCDateTime("2020-08-01 05:00:00")
+    endtime = UTCDateTime("2020-08-01 05:10:00")
+    boxcoords=[31.0, -91.0, 37.0, -83] # for csv test
+    titl="csvtest"
 
 # percentage effectiveness. stations below this will be excluded in a second grid calculation.
-effper=10    # set to 0 to use all stations
+effper=0    # set to 0 to use all stations
 
 debug = True
 
 if calc:
     # build an inventory
     stas= "*"
-    nets="IU,US,N4,NE,TA,PE,CN,NM,ET,AG,AO"
-    chans="HH*,BH*"
+    #nets="IU,US,N4,NE,TA,PE,CN,NM,ET,AG,AO"
+    nets="UU,US,N4,C0"
+#    nets="CN,N4"
+#    nets="IU,US,N4,NE"
+    chans="HH*,BH*,EH*"
     #nets="O2,OK,US,N4,TA,GS"
 
 
 
 
 
-    inventory = client.get_stations(network=nets,station=stas,channel=chans,starttime=starttime, endtime=endtime, minlatitude=boxcoords[0]-bb,
-                                        minlongitude=boxcoords[1]-bb, maxlatitude=boxcoords[2]+bb, maxlongitude=boxcoords[3]+bb, level='response')
+    inventory = client.get_stations(network=nets,station=stas,channel=chans,
+                                    starttime=starttime, endtime=endtime, 
+                                    minlatitude=boxcoords[0]-bb, minlongitude=boxcoords[1]-bb, 
+                                    maxlatitude=boxcoords[2]+bb, maxlongitude=boxcoords[3]+bb, 
+                                    level='response')
 
 
     # if you have other sites to add that can't be easily wildcarded, you can add them like this
+
     #othernets="LD"
     #othersites="NCB,FLET,KSCT,MCVT,HCNY,NPNY,PAL,ODNJ,WCNY,WVNY,SDMD,GCMD,GEDE,WADE"
     #othersites="BLO,BVIL,CBMO,CGM3,CGMO,EDIL,EVIN,FFIL,FVM,GBIN,HAIL,JCMO,MCIL,MGMO,MPH,MVKY,OHIN,OLIL,PBMO,PIOH,PLAL,PVMO,SCIN,SCMO,SIUC,STIL,TCIN,TYMO,UALR,USIN,UTMT,WVIL"
@@ -83,13 +118,19 @@ if calc:
     #inventory += client.get_stations(network=othernets,station=othersites,channel=chans,starttime=starttime,
     #                                    endtime=endtime,  level='response')
 
+
 ####     end of user input   ####################
 #############################################################################   
 ######### parameters below are default filter parameters for P and S ########
+# defaults
 fmin=1.25
 fmax=20.
 fminS=0.8
 fmaxS=12.5
+#fmin=1.25
+#fmax=15.
+#fminS=0.8
+#fmaxS=12.5
 
 # Median P and S values from noise study
 PdBval=-114.4
@@ -99,8 +140,19 @@ Pstd=10**(PdBval/20)
 Sstd=10**(SdBval/20)
 
 if calc==True:
-    Sdict=tm.calc_noise(inventory,starttime, endtime, fmin, fmax, fminS,fmaxS)
-                            
+    if waveform_or_psd == 'waveform':
+        print('Calculating noise levels based on waveform data')
+        Sdict=tm.calc_noise(inventory,starttime, endtime, fmin, fmax, fminS,fmaxS)
+    elif waveform_or_psd == 'psd':
+        print('Requesting PSDs from MUSTANG')
+        if use_profile == True:
+            print(f'profile_stat = {profile_stat}')
+            Sdict=tm.get_noise_MUSTANG(inventory,starttime, endtime, fmin, fmax, fminS, fmaxS, 
+                                       use_profile=True, profile_stat=profile_stat)
+        else:
+            Sdict=tm.get_noise_MUSTANG(inventory,starttime, endtime, fmin, fmax, fminS,fmaxS)
+    csvname = f'NoiseVals{titl}{starttime.strftime("%Y%m%d%H")}.csv'
+    tm.sdict_to_csv(Sdict, csvname)
     with open('NoiseVals%s%s.pickle'%(titl,starttime.strftime('%Y%m%d%H')),'wb') as f:
         pickle.dump([Sdict, boxcoords],f)
     f.close()
@@ -111,7 +163,7 @@ else:
         f.close()
     elif pickleorcsv=='csv':
         Sdict=tm.calc_noise_csv('NoiseVals%s%s.csv'%(titl,starttime.strftime('%Y%m%d%H')))
-
+        #print(Sdict)
     else:
         print("pickleorcsv must be set to either 'pickle' or 'csv'. ")
         
@@ -127,8 +179,15 @@ for sta in Sdict:
 # set up a grid for modelling
 x1=np.arange(boxcoords[1],boxcoords[3]+.1,.1)
 y1=np.arange(boxcoords[0],boxcoords[2]+.1,.1)
+#x1=np.arange(boxcoords[1],boxcoords[3]+.25,.25)
+#y1=np.arange(boxcoords[0],boxcoords[2]+.25,.25)
+#x=np.arange(boxcoords[1],boxcoords[3]+1,1)
+#y=np.arange(boxcoords[0],boxcoords[2]+1,1)
 
-results, Sdict = tm.model_thresh(Sdict,x1,y1,npick,velerr,nsta=nsta,dist_cut=250)
+print('modeling...')
+#results, Sdict = tm.model_thresh(Sdict,x,y,npick,velerr,dist_cut=250)
+
+results, Sdict = tm.model_thresh(Sdict,x1,y1,npick,velerr,nsta=nsta,dist_cut=250,coeffs=atten)
 extent=[boxcoords[1], boxcoords[3], boxcoords[0], boxcoords[2]]
 x=np.asarray(results[:,0])
 y=np.asarray(results[:,1])
@@ -154,7 +213,7 @@ if effper > 0:
             if eff < effper:
                 exclude_list.append(sta)
 
-    resultsX, Sdict = tm.model_thresh(Sdict,x1,y1,npick,velerr,nsta=nsta,dist_cut=250,xl=exclude_list)
+    resultsX, Sdict = tm.model_thresh(Sdict,x1,y1,npick,velerr,nsta=nsta,dist_cut=250,coeffs=atten,xl=exclude_list)
     zX=np.asarray(resultsX[:,2])
     zXi = griddata( (x,y), zX, (xi, yi), method='cubic')
     with open('DetectGridX%s%s.pickle'%(titl,starttime.strftime('%Y%m%d%H')),'wb') as f:
@@ -172,10 +231,11 @@ with open('DetectGrid%s%s.pickle'%(titl,starttime.strftime('%Y%m%d%H')),'wb') as
     pickle.dump([xi,yi,zi,Sdict],f)
 f.close()
     
+print('plotting...')
 if 1:
     plt.figure(7, figsize=(10,6))
     c1=np.floor(min(z)*10)/10
-    c2=np.ceil(max(z)*10)/10
+    c2=np.ceil(max(z+.1)*10)/10
     #c1=1.0
     #c2=2.9
     #ax = plt.axes(projection=ccrs.AlbersEqualArea(central_lon, central_lat))
@@ -190,10 +250,12 @@ if 1:
     matplotlib.rcParams['xtick.direction'] = 'out'
     matplotlib.rcParams['ytick.direction'] = 'out'
 
-    plt.contourf(xi, yi, zi.reshape(xi.shape), np.arange(c1, c2+.01, 0.1), cmap=plt.cm.plasma, transform=ccrs.PlateCarree() )
+#    plt.contourf(xi, yi, zi.reshape(xi.shape), np.arange(c1, c2+.01, 0.1), cmap=plt.cm.plasma, transform=ccrs.PlateCarree() )
+    plt.contourf(xi, yi, zi.reshape(xi.shape), np.arange(c1, c2+.01, 0.25), 
+                 cmap=plt.cm.plasma, transform=ccrs.PlateCarree() )
     gridlines=ax.gridlines(draw_labels=True, color='gray', alpha=.8, linestyle=':')
-    gridlines.xlabels_top=False
-    gridlines.ylabels_right=False
+    gridlines.top_labels=False
+    gridlines.right_labels=False
     gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax,2))
     gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax,2))
     gridlines.xformatter = LONGITUDE_FORMATTER
@@ -271,8 +333,8 @@ if 1:
     plt.contourf(xi, yi, zdi.reshape(xi.shape), cmap=plt.cm.plasma, transform=ccrs.PlateCarree() )
     # Add color bar
     gridlines=ax3.gridlines(draw_labels=True, color='gray', alpha=.8, linestyle=':')
-    gridlines.xlabels_top=False
-    gridlines.ylabels_right=False
+    gridlines.top_labels=False
+    gridlines.right_labels=False
     gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax,2))
     gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax,2))
     gridlines.xformatter = LONGITUDE_FORMATTER
@@ -301,8 +363,8 @@ if 1:
     plt.contourf(xi, yi, zd2i.reshape(xi.shape), np.arange(1.0, 3.2, 0.2),cmap=plt.cm.plasma, transform=ccrs.PlateCarree() )
     # Add color bar
     gridlines=ax3.gridlines(draw_labels=True, color='gray', alpha=.8, linestyle=':')
-    gridlines.xlabels_top=False
-    gridlines.ylabels_right=False
+    gridlines.top_labels=False
+    gridlines.right_labels=False
     gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax,2))
     gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax,2))
     gridlines.xformatter = LONGITUDE_FORMATTER
@@ -358,8 +420,8 @@ if 1:
                 f.write("%s, %4.1f, X, %4.1f, %i, %i \n"%(sta,m25d,eff, Sdict[sta]['hit'],tot))
     #plt.plot(slons,slats, 'kd', markersize=4.5, transform=ccrs.PlateCarree())
     gridlines=ax2.gridlines(draw_labels=True, color='gray', alpha=.8, linestyle=':')
-    gridlines.xlabels_top=False
-    gridlines.ylabels_right=False
+    gridlines.top_labels=False
+    gridlines.right_labels=False
     gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax,2))
     gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax,2))
     gridlines.xformatter = LONGITUDE_FORMATTER
@@ -389,8 +451,8 @@ if 1:
     plt.contourf(xi, yi, zei.reshape(xi.shape), cmap=plt.cm.plasma, transform=ccrs.PlateCarree() )
     # Add color bar
     gridlines=ax3.gridlines(draw_labels=True, color='gray', alpha=.8, linestyle=':')
-    gridlines.xlabels_top=False
-    gridlines.ylabels_right=False
+    gridlines.top_labels=False
+    gridlines.right_labels=False
     gridlines.xlocator = mticker.FixedLocator(np.arange(lnmin,lnmax,2))
     gridlines.ylocator = mticker.FixedLocator(np.arange(ltmin,ltmax,2))
     gridlines.xformatter = LONGITUDE_FORMATTER
