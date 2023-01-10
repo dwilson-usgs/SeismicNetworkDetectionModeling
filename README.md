@@ -1,6 +1,10 @@
 # SeismicNetworkDetectionModeling
  Python codes to model the detection threshold of seismic networks using FilterPicker
 
+> Note: If you are seeing this on GitHub, the official repo is here:
+https://code.usgs.gov/asl/papers/dwilson/seismic-network-detection-modeling
+
+
 EventFPPickerExample.py is for running and plotting event examples.
 FilterPicker.py is the module that contains the various functions corresponding to the equations in Lomax et al., 2012.
 
