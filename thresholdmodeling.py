@@ -248,36 +248,37 @@ def get_noise_MUSTANG(inventory, starttime, endtime, fmin=1.25, fmax=25., fminS=
                                 raise(e)
                                 print(f'unable to parse returned text for {target}')
                                 continue
+                    
+
+                        if np.abs(chan.dip) > 45:
+                            i_calc, = np.where((f >= fmin) & (f<=fmax)) #fmin, fmax for vertical (P)
+                            comp = 'V'
+                        else:
+                            i_calc, = np.where((f >= fminS) & (f<=fmaxS)) #fminS, fmaxS for horizontal (S)
+                            comp = 'H'
+
+                        # Check to make sure it is not dead: 
+                        # PSD vals should be > -150 dB between 4 and 8 s
+                        i_checkdead, = np.where((f <= 1./4) & (f >= 1./8))
+                        if (Px[i_checkdead] > -150).all():
+                            df = np.diff(f[i_calc])
+                            stdacc = np.sqrt(np.sum(df*10**(Px[i_calc[1:]]/10)))
+                            if comp == 'H':
+                                hcount +=1
+                                hsum += stdacc
+                            if comp == 'V':
+                                if not Sdict[sta.code]['chans'][comp]:
+                                    Sdict[sta.code]['chans']['V'] = stdacc
+                            if comp == 'H' and hcount > 0:
+                                Sdict[sta.code]['chans']['H'] = hsum/hcount
+
+                        else:
+                            print("Possible dead channel %s-%s-%s" % (cnet.code, sta.code,chan.code))
                     else: 
                         print('data request not successful')
-
-                    if np.abs(chan.dip) > 45:
-                        i_calc, = np.where((f >= fmin) & (f<=fmax)) #fmin, fmax for vertical (P)
-                        comp = 'V'
-                    else:
-                        i_calc, = np.where((f >= fminS) & (f<=fmaxS)) #fminS, fmaxS for horizontal (S)
-                        comp = 'H'
-
-                    # Check to make sure it is not dead: 
-                    # PSD vals should be > -150 dB between 4 and 8 s
-                    i_checkdead, = np.where((f <= 1./4) & (f >= 1./8))
-                    if (Px[i_checkdead] > -150).all():
-                        df = np.diff(f[i_calc])
-                        stdacc = np.sqrt(np.sum(df*10**(Px[i_calc[1:]]/10)))
-                        if comp == 'H':
-                            hcount +=1
-                            hsum += stdacc
-                        if comp == 'V':
-                            if not Sdict[sta.code]['chans'][comp]:
-                                Sdict[sta.code]['chans']['V'] = stdacc
-                        if comp == 'H' and hcount > 0:
-                            Sdict[sta.code]['chans']['H'] = hsum/hcount
-
-                    else:
-                        print("Possible dead channel %s-%s-%s" % (cnet.code, sta.code,chan.code))
-                except Exception as e:
+                except:
                     print("Could not fetch %s-%s-%s" % (cnet.code, sta.code,chan.code))
-                    raise(e)
+                    #raise(e)
     return Sdict
 
 
